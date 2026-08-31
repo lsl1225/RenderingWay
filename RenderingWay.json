@@ -1,0 +1,10 @@
+{
+  "Author": "lsl1225",
+  "Name": "RenderingWay",
+  "Punchline": "Simply disables 3D rendering.",
+  "Description": "",
+  "InternalName": "RenderingWay",
+  "ApplicableVersion": "any",
+  "AssemblyVersion": "1.0.0.0",
+  "DalamudApiLevel": 15
+}
