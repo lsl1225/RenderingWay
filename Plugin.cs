@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Command;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using ECommons;
@@ -10,9 +11,12 @@ namespace RenderingWay;
 
 public sealed class Plugin : IDalamudPlugin
 {
+    private const string CommandName = "/prender";
+
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly IFramework framework;
     private readonly IClientState clientState;
+    private readonly ICommandManager commandManager;
 
     private readonly Configuration configuration;
 
@@ -22,29 +26,45 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         IFramework framework,
-        IClientState clientState)
+        IClientState clientState,
+        ICommandManager commandManager)
     {
         this.pluginInterface = pluginInterface;
         this.framework = framework;
         this.clientState = clientState;
+        this.commandManager = commandManager;
 
-        // 初始化 ECommons。
+        // 初始化 ECommons
         ECommonsMain.Init(pluginInterface, this);
 
-        // 读取配置。
+        // 读取配置
         configuration =
             pluginInterface.GetPluginConfig() as Configuration
             ?? new Configuration();
 
-        // Framework Update 中处理 RenderDisableManager。
+        // RenderDisableManager 必须在 Framework Update 中调用
         framework.Update += OnFrameworkUpdate;
 
-        // Territory 切换事件。
+        // Territory 切换事件
         clientState.TerritoryChanged += OnTerritoryChanged;
 
-        // 配置窗口。
+        // 配置窗口
         pluginInterface.UiBuilder.Draw += DrawConfig;
         pluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
+
+        // 注册 /prender
+        commandManager.AddHandler(
+            CommandName,
+            new CommandInfo(OnCommand)
+            {
+                HelpMessage = "打开 RenderingWay 配置窗口",
+                ShowInHelp = true,
+            });
+    }
+
+    private void OnCommand(string command, string arguments)
+    {
+        configWindowOpen = true;
     }
 
     private void OnFrameworkUpdate(IFramework framework)
@@ -75,12 +95,7 @@ public sealed class Plugin : IDalamudPlugin
         if (!configuration.Enabled)
             return;
 
-        // Territory 切换后关闭 Enabled。
-        //
-        // RenderDisableManager 的 RemoveRequest 会在下一次
-        // Framework Update 中执行，从而保证调用线程符合要求。
         configuration.Enabled = false;
-
         SaveConfiguration();
     }
 
@@ -118,7 +133,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         ImGui.TextWrapped(
-            "启用后停止游戏内的 3D 场景渲染。Dalamud 和插件 ImGui 界面仍可继续显示。");
+            "启用后停止游戏内的 3D 场景渲染。Dalamud 和插件界面仍可显示。");
 
         ImGui.Spacing();
         ImGui.Separator();
@@ -147,15 +162,15 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
-        // 先停止自己的事件。
+        // 注销命令
+        commandManager.RemoveHandler(CommandName);
+
         framework.Update -= OnFrameworkUpdate;
         clientState.TerritoryChanged -= OnTerritoryChanged;
 
         pluginInterface.UiBuilder.Draw -= DrawConfig;
         pluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
 
-        // ECommonsMain.Dispose 内部会清理当前插件在
-        // RenderDisableManager 中留下的渲染关闭请求。
         ECommonsMain.Dispose();
     }
 }
